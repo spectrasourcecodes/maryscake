@@ -1,0 +1,58 @@
+import { createContext, useState, useContext, useEffect } from 'react'
+import api from '../services/api'
+
+const AuthContext = createContext()
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken')
+    if (token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      api.get('/auth/me')
+        .then(res => setUser(res.data.user))
+        .catch(() => {
+          localStorage.removeItem('adminToken')
+          delete api.defaults.headers.common['Authorization']
+          setUser(null)
+        })
+        .finally(() => setLoading(false))
+    } else {
+      setLoading(false)
+    }
+  }, [])
+
+  const login = async (email, password) => {
+    const res = await api.post('/auth/login', { email, password })
+    const { token, user } = res.data
+    localStorage.setItem('adminToken', token)
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    setUser(user)
+    return user
+  }
+
+  const signup = async (email, password, secretKey) => {
+    const res = await api.post('/auth/signup', { email, password, secretKey })
+    const { token, user } = res.data
+    localStorage.setItem('adminToken', token)
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    setUser(user)
+    return user
+  }
+
+  const logout = () => {
+    localStorage.removeItem('adminToken')
+    delete api.defaults.headers.common['Authorization']
+    setUser(null)
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export const useAuth = () => useContext(AuthContext)
